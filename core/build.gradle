@@ -1,0 +1,4 @@
+dependencies {
+    // API загрузчика есть в рантайме (parent-first), в jar ядра его класть не нужно.
+    compileOnly project(':loader')
+}

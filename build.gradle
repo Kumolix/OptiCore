@@ -1,0 +1,40 @@
+subprojects {
+    apply plugin: 'java-library'
+
+    group = 'dev.corelix'
+    version = rootProject.property('corelixVersion')
+
+    base {
+        archivesName = "corelix-${project.name}"
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        // Minecraft 1.21.x требует Java 21. Для локальной проверки на другом JDK: -PjavaRelease=17
+        options.release = Integer.parseInt((rootProject.findProperty('javaRelease') ?: '21').toString())
+    }
+
+    tasks.withType(Jar).configureEach {
+        // Имя файла без версии (corelix-loader.jar), версия лежит в манифесте.
+        archiveVersion.set('')
+        manifest {
+            attributes(
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.version
+            )
+        }
+    }
+
+    processResources {
+        // Значение берём на этапе конфигурации: обращение к project на этапе выполнения устарело в Gradle 9/10.
+        def modVersion = project.version.toString()
+        inputs.property 'corelixVersion', modVersion
+        filesMatching('corelix.mod.properties') {
+            expand(version: modVersion)
+        }
+    }
+}

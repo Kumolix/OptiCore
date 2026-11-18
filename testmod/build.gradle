@@ -1,0 +1,4 @@
+// Тестовый мод: нужен только для дымового теста, в релиз не входит.
+dependencies {
+    compileOnly project(':loader')
+}

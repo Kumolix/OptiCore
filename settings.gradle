@@ -1,0 +1,3 @@
+rootProject.name = 'corelix'
+
+include 'loader', 'core', 'testmod'
