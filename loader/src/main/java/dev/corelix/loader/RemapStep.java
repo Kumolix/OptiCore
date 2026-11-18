@@ -38,8 +38,10 @@ final class RemapStep {
     }
 
     static Path run(List<URL> libUrls, Path clientJar, Path mappings, Path cacheDir) {
+        // Родитель это загрузчик платформы, а не classpath игры: так ремаппер не подхватит чужую (старую) версию ASM
+        // из библиотек Minecraft и использует только свои jar из libs.
         try (URLClassLoader tool = new URLClassLoader(
-                "corelix-remap", libUrls.toArray(new URL[0]), RemapStep.class.getClassLoader())) {
+                "corelix-remap", libUrls.toArray(new URL[0]), ClassLoader.getPlatformClassLoader())) {
             Class<?> remapper;
             try {
                 remapper = Class.forName(REMAPPER_CLASS, true, tool);
