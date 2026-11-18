@@ -1,0 +1,12 @@
+# Имитация client.txt Mojang (формат ProGuard) для дымового теста ремапа
+net.minecraft.client.main.Main -> net.minecraft.client.main.Main:
+corelix.test.Base -> o.a:
+    int count -> c
+    1:1:int plus(int) -> d
+    1:1:java.lang.String stat() -> e
+corelix.test.Impl -> o.b:
+    1:1:int total() -> g
+    1:1:corelix.test.Base[] self() -> h
+    1:1:java.lang.String lam() -> i
+corelix.test.Total -> o.f:
+    int total() -> g

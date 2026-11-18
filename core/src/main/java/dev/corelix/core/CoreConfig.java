@@ -9,14 +9,13 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Properties;
 
 /** Конфиг {@code config/corelix.properties}. Если файла нет, создаётся с комментариями. */
 public final class CoreConfig {
     private static final String TEMPLATE = """
             # Corelix Core
-            # profile: auto | pojav | desktop (auto = определить по окружению)
+            # profile: auto | mobile | desktop (auto = определить по окружению; pojav = mobile)
             profile=auto
             # executor.threads: число рабочих потоков, auto = по профилю и числу ядер
             executor.threads=auto
@@ -52,12 +51,8 @@ public final class CoreConfig {
     }
 
     public Platform platform(Platform detected) {
-        String v = props.getProperty("profile", "auto").trim().toLowerCase(Locale.ROOT);
-        return switch (v) {
-            case "pojav" -> Platform.POJAV;
-            case "desktop" -> Platform.DESKTOP;
-            default -> detected;
-        };
+        Platform forced = Platform.parse(props.getProperty("profile", "auto"));
+        return forced != null ? forced : detected;
     }
 
     public int threads(Platform platform) {
@@ -71,7 +66,7 @@ public final class CoreConfig {
         }
         int cores = Runtime.getRuntime().availableProcessors();
         // На телефоне render- и game-поток уже занимают ядра, а мелкие ядра big.LITTLE слабы: берём меньше.
-        return platform == Platform.POJAV
+        return platform == Platform.MOBILE
                 ? Math.max(1, Math.min(3, cores / 2))
                 : Math.max(1, Math.min(8, cores - 2));
     }

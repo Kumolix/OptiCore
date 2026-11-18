@@ -26,11 +26,15 @@ jobs:
       - name: Дымовой тест
         run: bash scripts/smoke.sh
 
+      - name: Проверка ремапа на настоящем клиенте Minecraft
+        run: bash scripts/verify-real.sh
+
       - name: Собрать артефакты
         run: |
           mkdir -p dist
           cp loader/build/libs/corelix-loader.jar dist/
           cp core/build/libs/corelix-core.jar dist/
+          cp remap/build/libs/corelix-remap.jar dist/
 
       - uses: actions/upload-artifact@v4
         with:

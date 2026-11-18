@@ -9,8 +9,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOADER="$ROOT/loader/build/libs/corelix-loader.jar"
 CORE="$ROOT/core/build/libs/corelix-core.jar"
 TESTMOD="$ROOT/testmod/build/libs/corelix-testmod.jar"
+REMAP="$ROOT/remap/build/libs/corelix-remap.jar"
 
-for f in "$LOADER" "$CORE" "$TESTMOD"; do
+for f in "$LOADER" "$CORE" "$TESTMOD" "$REMAP"; do
   [ -f "$f" ] || { echo "нет файла $f, сначала выполните: gradle build"; exit 2; }
 done
 
@@ -75,10 +76,12 @@ else
 fi
 [ -f "$W/game1/config/corelix.properties" ] && echo "  ok: конфиг создан" || { echo "  FAIL: конфиг не создан"; exit 1; }
 
-# --- сценарий 2: профиль Pojav -----------------------------------------------------
-echo "[2] профиль Pojav"
+# --- сценарий 2: профиль телефона ----------------------------------------------------
+echo "[2] профиль MOBILE (и алиас pojav)"
+OUT="$(run_game "$W/game1" -Dcorelix.platform=mobile)"
+check "ядро запущено с профилем MOBILE" 'profile=MOBILE, worker threads=[0-9]+'
 OUT="$(run_game "$W/game1" -Dcorelix.platform=pojav)"
-check "ядро запущено с профилем POJAV" 'profile=POJAV, worker threads=[0-9]+'
+check "значение pojav понимается как MOBILE" 'profile=MOBILE, worker threads=[0-9]+'
 
 # --- сценарий 3: не хватает зависимости -------------------------------------------
 echo "[3] отсутствует зависимость"
@@ -91,5 +94,29 @@ set -e
 if [ "$code" -ne 1 ]; then echo "  FAIL: ожидался код выхода 1, получен $code"; echo "$OUT"; exit 1; fi
 echo "  ok: код выхода 1"
 check "понятная ошибка про отсутствующий мод" "requires missing mod 'corelix-core'"
+
+# --- сценарий 4: ремап клиента (обфусцированные имена -> Mojang) ----------------------
+echo "[4] ремап клиента через загрузчик"
+OBF="$ROOT/scripts/fixtures/obf"
+mkdir -p "$W/obf-classes" "$W/libs4" "$W/game4/mods"
+javac -nowarn -d "$W/obf-classes" "$OBF"/o/*.java "$OBF/Main.java" 2>&1 | grep -v 'Picked up' || true
+jar cf "$W/obf-client.jar" -C "$W/obf-classes" .
+cp "$REMAP" "$W/libs4/"
+
+run_obf() {
+  java -Dcorelix.libs="$W/libs4" -Dcorelix.mappings="$OBF/client.txt" -Dcorelix.cache="$W/cache4" \
+    -cp "$LOADER:$W/obf-client.jar" dev.corelix.loader.CorelixMain --gameDir "$W/game4" 2>&1 | grep -v 'Picked up'
+}
+OUT="$(run_obf)"
+check "клиент перегнан в имена Mojang" 'remap: [0-9]+ classes in [0-9]+ ms'
+check "игра работает на ремапнутых классах (унаследованные методы, поля, массивы, лямбды)" \
+  'OBF_GAME g=20 h=1 i=static5 class=corelix\.test\.Impl'
+OUT="$(run_obf)"
+check "второй запуск берёт результат из кэша" 'remap: using cached'
+check "и игра по-прежнему работает" 'OBF_GAME g=20 h=1 i=static5 class=corelix\.test\.Impl'
+
+# оригинальный jar без ремапа остаётся обфусцированным (контроль, что тест различает)
+OUT="$(java -cp "$W/obf-client.jar" net.minecraft.client.main.Main 2>&1 | grep -v 'Picked up')"
+check "без загрузчика классы остаются обфусцированными" 'class=o\.b'
 
 echo "Дымовой тест пройден"

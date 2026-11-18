@@ -1,0 +1,23 @@
+// Ремаппер клиента (ASM). Собирается в один jar вместе с ASM и грузится загрузчиком из папки libs,
+// а не из classpath игры, поэтому с библиотеками Minecraft не конфликтует.
+def localAsm = rootProject.findProperty('localAsm')   // для офлайн-сборки: -PlocalAsm=/opt/gradle-8.14.3/lib
+
+dependencies {
+    if (localAsm) {
+        api fileTree(dir: localAsm, include: ['asm-9.7.1.jar', 'asm-commons-9.7.1.jar', 'asm-tree-9.7.1.jar'])
+    } else {
+        api 'org.ow2.asm:asm:9.7.1'
+        api 'org.ow2.asm:asm-commons:9.7.1'
+    }
+}
+
+jar {
+    manifest {
+        attributes('Main-Class': 'dev.corelix.remap.Cli')
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
+}
