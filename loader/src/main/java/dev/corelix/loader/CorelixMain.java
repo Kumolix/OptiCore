@@ -51,8 +51,10 @@ public final class CorelixMain {
                 Log.info("client: " + remapped.getFileName());
             }
 
-            List<Path> all = new ArrayList<>(classpath);
-            all.addAll(libs);
+            // Библиотеки Corelix (ASM, Mixin) идут первыми: загрузчик ищет классы по порядку, и наша версия ASM
+            // должна побеждать любую старую копию, которая случайно лежит среди библиотек игры.
+            List<Path> all = new ArrayList<>(libs);
+            all.addAll(classpath);
             loader = new CorelixClassLoader(toUrls(all), CorelixMain.class.getClassLoader());
             Thread.currentThread().setContextClassLoader(loader);
 
