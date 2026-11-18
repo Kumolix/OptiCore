@@ -63,6 +63,7 @@ public final class CorelixMain {
             for (ModManifest mod : mods) {
                 initMod(mod, gameDir, loader);
             }
+            initMixin(loader, mods);
         } catch (ModLoadException e) {
             Log.error(e.getMessage(), null);
             System.exit(1);
@@ -95,6 +96,37 @@ public final class CorelixMain {
         }
         Log.info("mod " + mod.id() + " " + mod.version());
         corelixMod.onInit(new ModContextImpl(mod.id(), gameDir, loader));
+    }
+
+    /**
+     * Если моды объявили конфиги Mixin (ключ {@code mixins}), поднимает Mixin. Сам Mixin и наш сервис для него
+     * лежат в папке libs (corelix-mixin-support.jar и sponge-mixin), поэтому грузятся только когда нужны.
+     */
+    private static void initMixin(CorelixClassLoader loader, List<ModManifest> mods) {
+        List<String> configs = new ArrayList<>();
+        for (ModManifest mod : mods) {
+            configs.addAll(mod.mixins());
+        }
+        if (configs.isEmpty()) {
+            return;
+        }
+        Class<?> bootstrap;
+        try {
+            bootstrap = Class.forName("dev.corelix.mixin.CorelixMixin", true, loader);
+        } catch (ClassNotFoundException e) {
+            throw new ModLoadException("mods declare Mixin configs " + configs
+                    + ", but corelix-mixin-support.jar (with Mixin) is not in the libs folder");
+        }
+        try {
+            bootstrap.getMethod("init", CorelixClassLoader.class, List.class).invoke(null, loader, configs);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            Log.error("Mixin initialization failed", cause);
+            throw new ModLoadException("Mixin initialization failed: " + cause);
+        } catch (ReflectiveOperationException e) {
+            throw new ModLoadException("Mixin initialization failed: " + e);
+        }
+        Log.info("Mixin ready, configs: " + configs);
     }
 
     private static Path parseGameDir(String[] args) {

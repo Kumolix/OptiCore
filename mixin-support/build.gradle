@@ -1,0 +1,26 @@
+// Сервис Mixin для Corelix. Собирается отдельным jar и лежит в папке libs вместе с Mixin и ASM,
+// поэтому грузится только когда какой-то мод объявил конфиги Mixin.
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+configurations {
+    runtimeLibs
+}
+
+def mixinVersion = '0.17.5+mixin.0.8.7'
+
+dependencies {
+    compileOnly project(':loader')
+    compileOnly "net.fabricmc:sponge-mixin:${mixinVersion}"
+    // Mixin и его зависимости (asm, asm-tree, asm-commons, asm-util, asm-analysis) для папки libs
+    runtimeLibs "net.fabricmc:sponge-mixin:${mixinVersion}"
+}
+
+// gradle :mixin-support:bundle  ->  build/bundle/ со всеми jar для папки libs
+tasks.register('bundle', Copy) {
+    dependsOn tasks.named('jar')
+    from configurations.runtimeLibs
+    from tasks.named('jar').flatMap { it.archiveFile }
+    into layout.buildDirectory.dir('bundle')
+}

@@ -29,7 +29,11 @@ public final class CorelixClassLoader extends URLClassLoader {
         "java.", "javax.", "jdk.", "sun.", "com.sun.", "dev.corelix.api.", "dev.corelix.loader."
     };
 
+    /** Классы, которые не отдаём Mixin: сам Mixin, ASM и код Corelix. */
+    private static final String[] MIXIN_EXCLUDED = {"dev.corelix.", "org.spongepowered.", "org.objectweb.asm."};
+
     private final List<ClassTransformer> transformers = new CopyOnWriteArrayList<>();
+    private volatile ClassTransformer mixinTransformer;
 
     public CorelixClassLoader(List<URL> urls, ClassLoader parent) {
         super("corelix", urls.toArray(new URL[0]), parent);
@@ -45,6 +49,42 @@ public final class CorelixClassLoader extends URLClassLoader {
 
     public void addTransformer(ClassTransformer transformer) {
         transformers.add(transformer);
+    }
+
+    /** Подключает Mixin. Он работает последним, уже после обычных трансформеров модов. */
+    public void setMixinTransformer(ClassTransformer transformer) {
+        this.mixinTransformer = transformer;
+    }
+
+    /** Загружен ли уже класс этим загрузчиком (для Mixin). */
+    public boolean isLoaded(String className) {
+        return findLoadedClass(className) != null;
+    }
+
+    /**
+     * Байткод класса для Mixin. Классы игры и модов берутся из URL загрузчика (при {@code runTransformers}
+     * после обычных трансформеров, но до Mixin), остальные (JDK и т.п.) читаются как ресурсы без изменений.
+     *
+     * @return байткод или {@code null}, если класса нет
+     */
+    public byte[] getClassBytes(String className, boolean runTransformers) {
+        String name = className.replace('/', '.');
+        String path = name.replace('.', '/').concat(".class");
+        URL own = findResource(path);
+        URL url = own != null ? own : getResource(path);
+        if (url == null) {
+            return null;
+        }
+        byte[] bytes;
+        try (InputStream in = url.openStream()) {
+            bytes = in.readAllBytes();
+        } catch (IOException e) {
+            return null;
+        }
+        if (own != null && runTransformers && !name.startsWith("dev.corelix.")) {
+            bytes = transform(name, bytes);
+        }
+        return bytes;
     }
 
     private static boolean isParentFirst(String name) {
@@ -95,6 +135,10 @@ public final class CorelixClassLoader extends URLClassLoader {
         if (!name.startsWith("dev.corelix.")) {
             bytes = transform(name, bytes);
         }
+        ClassTransformer mixin = mixinTransformer;
+        if (mixin != null && !isMixinExcluded(name)) {
+            bytes = applyMixin(mixin, name, bytes);
+        }
         definePackageIfAbsent(name);
         CodeSource source = new CodeSource(codeSourceUrl(resource, path), (CodeSigner[]) null);
         return defineClass(name, bytes, 0, bytes.length, new ProtectionDomain(source, null, this, null));
@@ -112,6 +156,24 @@ public final class CorelixClassLoader extends URLClassLoader {
             }
         }
         return bytes;
+    }
+
+    private static boolean isMixinExcluded(String name) {
+        for (String prefix : MIXIN_EXCLUDED) {
+            if (name.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static byte[] applyMixin(ClassTransformer mixin, String name, byte[] bytes) {
+        try {
+            byte[] result = mixin.transform(name, bytes);
+            return result != null ? result : bytes;
+        } catch (Throwable e) {
+            throw new IllegalStateException("Mixin failed on class " + name, e);
+        }
     }
 
     private void definePackageIfAbsent(String className) {

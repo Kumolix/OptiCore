@@ -1,3 +1,8 @@
 rootProject.name = 'corelix'
 
 include 'loader', 'remap', 'core', 'testmod'
+
+// mixin-support тянет Mixin из Maven (Fabric), поэтому офлайн-сборку можно делать без него: gradle -PnoMixinSupport
+if (!gradle.startParameter.projectProperties.containsKey('noMixinSupport')) {
+    include 'mixin-support'
+}

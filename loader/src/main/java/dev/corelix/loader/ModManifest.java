@@ -18,6 +18,7 @@ public record ModManifest(
         String name,
         String entrypoint,
         List<String> depends,
+        List<String> mixins,
         int api,
         Path path) {
 
@@ -64,6 +65,16 @@ public record ModManifest(
                 depends.add(d);
             }
         }
+        List<String> mixins = new ArrayList<>();
+        String mixinsRaw = trimmed(p, "mixins");
+        if (mixinsRaw != null) {
+            for (String m : mixinsRaw.split(",")) {
+                m = m.trim();
+                if (!m.isEmpty()) {
+                    mixins.add(m);
+                }
+            }
+        }
         String version = trimmed(p, "version");
         String name = trimmed(p, "name");
         return new ModManifest(
@@ -72,6 +83,7 @@ public record ModManifest(
                 name == null ? id : name,
                 entrypoint,
                 List.copyOf(depends),
+                List.copyOf(mixins),
                 api,
                 jar);
     }
