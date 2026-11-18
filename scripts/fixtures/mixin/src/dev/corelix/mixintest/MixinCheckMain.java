@@ -16,7 +16,8 @@ public final class MixinCheckMain {
         Method[] methods = minecraft.getDeclaredMethods();
 
         boolean marker = Arrays.stream(methods).anyMatch(m -> m.getName().equals("corelix$marker"));
-        boolean injected = Arrays.stream(methods).anyMatch(m -> m.getName().equals("corelix$onTick"));
+        // Mixin переименовывает обработчики инъекций в handler$<id>$corelix$onTick
+        boolean injected = Arrays.stream(methods).anyMatch(m -> m.getName().contains("corelix$onTick"));
         System.out.println("MIXIN_CHECK loader=" + minecraft.getClassLoader().getClass().getSimpleName()
                 + " marker=" + marker + " injected=" + injected + " methods=" + methods.length);
         if (!marker || !injected) {
