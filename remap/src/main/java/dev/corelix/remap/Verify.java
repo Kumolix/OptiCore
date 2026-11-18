@@ -29,6 +29,16 @@ final class Verify {
 
     private Verify() {}
 
+    /**
+     * Клиент содержит класс только для macOS (MacosUtil), которому нужна библиотека java-objc-bridge.
+     * По правилам Mojang она не скачивается на Linux, так что её отсутствие здесь не ошибка ремапа.
+     */
+    private static boolean isExpectedMissing(Throwable t) {
+        return t instanceof NoClassDefFoundError
+                && t.getMessage() != null
+                && t.getMessage().startsWith("ca/weblite/objc/");
+    }
+
     static int run(Path remappedJar, Path libsDir) throws IOException {
         List<URL> urls = new ArrayList<>();
         urls.add(remappedJar.toUri().toURL());
@@ -41,6 +51,7 @@ final class Verify {
         }
         int checked = 0;
         int failed = 0;
+        int ignored = 0;
         Map<String, Integer> byError = new TreeMap<>();
         List<String> samples = new ArrayList<>();
         try (URLClassLoader loader = new URLClassLoader(urls.toArray(new URL[0]), ClassLoader.getPlatformClassLoader());
@@ -59,6 +70,10 @@ final class Verify {
                     c.getDeclaredFields();
                     c.getDeclaredConstructors();
                 } catch (Throwable t) {
+                    if (isExpectedMissing(t)) {
+                        ignored++;
+                        continue;
+                    }
                     failed++;
                     String kind = t.getClass().getSimpleName();
                     byError.merge(kind, 1, Integer::sum);
@@ -76,7 +91,8 @@ final class Verify {
                 }
             }
         }
-        System.out.println("verify: checked " + checked + " classes, failed " + failed);
+        System.out.println("verify: checked " + checked + " classes, failed " + failed
+                + ", ignored (macOS-only library missing) " + ignored);
         byError.forEach((k, v) -> System.out.println("  " + k + ": " + v));
         samples.forEach(s -> System.out.println("  e.g. " + s));
         return failed == 0 ? 0 : 1;
