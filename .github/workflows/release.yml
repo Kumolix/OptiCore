@@ -1,0 +1,50 @@
+name: release
+
+# Публичный релиз: запускается тегом v*, собирает бандл corelix-bundle.zip и публикует его в GitHub Releases.
+# Лаунчер (MobiLabs) скачивает последний релиз сам, Actions для этого видеть не нужно.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Сборка
+        run: gradle build :mixin-support:bundle --stacktrace
+
+      - name: Дымовой тест
+        run: bash scripts/smoke.sh
+
+      - name: Бандл
+        run: |
+          mkdir -p dist/mods dist/libs
+          cp loader/build/libs/corelix-loader.jar dist/
+          cp core/build/libs/corelix-core.jar dist/mods/
+          cp mixin-support/build/bundle/*.jar dist/libs/
+          cp remap/build/libs/corelix-remap.jar dist/libs/
+          echo "${GITHUB_REF_NAME}" > dist/VERSION
+          (cd dist && zip -r ../corelix-bundle.zip .)
+          sha256sum corelix-bundle.zip | cut -d' ' -f1 > corelix-bundle.zip.sha256
+          cat corelix-bundle.zip.sha256
+
+      - name: Опубликовать релиз
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" corelix-bundle.zip corelix-bundle.zip.sha256 \
+            --title "Corelix ${GITHUB_REF_NAME}" --generate-notes

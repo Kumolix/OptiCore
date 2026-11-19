@@ -39,7 +39,7 @@
 | Свойство JVM | Назначение |
 |---|---|
 | `-Dcorelix.mappings=<client.txt>` | включает ремап клиента в имена Mojang (файл `client_mappings` из json версии) |
-| `-Dcorelix.libs`, `-Dcorelix.cache` | папки библиотек и кэша |
+| `-Dcorelix.libs`, `-Dcorelix.cache`, `-Dcorelix.mods` | папки библиотек, кэша и модов (мод по умолчанию `<gameDir>/mods`) |
 | `-Dcorelix.platform=mobile\|desktop` | платформа (`pojav` понимается как `mobile`) |
 
 Библиотеки Corelix стоят в загрузчике классов раньше classpath игры: старые копии ASM из библиотек Minecraft

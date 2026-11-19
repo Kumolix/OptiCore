@@ -24,7 +24,8 @@ import java.util.stream.Stream;
  *
  * <p>Свойства: {@code corelix.libs} (папка jar-библиотек, по умолчанию {@code <gameDir>/corelix/libs}),
  * {@code corelix.mappings} (файл client.txt Mojang, включает ремап), {@code corelix.cache}
- * (кэш ремапа, по умолчанию {@code <gameDir>/corelix/cache}), {@code corelix.platform}, {@code corelix.mainClass}.
+ * (кэш ремапа, по умолчанию {@code <gameDir>/corelix/cache}), {@code corelix.mods} (папка модов, по умолчанию
+ * {@code <gameDir>/mods}), {@code corelix.platform}, {@code corelix.mainClass}.
  */
 public final class CorelixMain {
     private static final String DEFAULT_MAIN = "net.minecraft.client.main.Main";
@@ -58,7 +59,8 @@ public final class CorelixMain {
             loader = new CorelixClassLoader(toUrls(all), CorelixMain.class.getClassLoader());
             Thread.currentThread().setContextClassLoader(loader);
 
-            mods = DependencySorter.sort(ModDiscovery.discover(gameDir.resolve("mods")));
+            mods = DependencySorter.sort(ModDiscovery.discover(Path.of(System.getProperty("corelix.mods",
+                    gameDir.resolve("mods").toString())).toAbsolutePath().normalize()));
             for (ModManifest mod : mods) {
                 loader.addPath(mod.path());
             }
