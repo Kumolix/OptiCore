@@ -5,6 +5,11 @@ name: release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег релиза (например v0.1.0)'
+        required: true
 
 permissions:
   contents: write
@@ -31,13 +36,15 @@ jobs:
         run: bash scripts/smoke.sh
 
       - name: Бандл
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           mkdir -p dist/mods dist/libs
           cp loader/build/libs/corelix-loader.jar dist/
           cp core/build/libs/corelix-core.jar dist/mods/
           cp mixin-support/build/bundle/*.jar dist/libs/
           cp remap/build/libs/corelix-remap.jar dist/libs/
-          echo "${GITHUB_REF_NAME}" > dist/VERSION
+          echo "${TAG}" > dist/VERSION
           (cd dist && zip -r ../corelix-bundle.zip .)
           sha256sum corelix-bundle.zip | cut -d' ' -f1 > corelix-bundle.zip.sha256
           cat corelix-bundle.zip.sha256
@@ -45,6 +52,7 @@ jobs:
       - name: Опубликовать релиз
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" corelix-bundle.zip corelix-bundle.zip.sha256 \
-            --title "Corelix ${GITHUB_REF_NAME}" --generate-notes
+          gh release create "${TAG}" corelix-bundle.zip corelix-bundle.zip.sha256 \
+            --target "${GITHUB_SHA}" --title "Corelix ${TAG}" --generate-notes
