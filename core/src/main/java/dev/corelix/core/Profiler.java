@@ -46,6 +46,10 @@ public final class Profiler {
     static void start(ModContext ctx, int intervalSeconds) {
         enabled = true;
         registerGcListeners(ctx);
+        Thread sampling = new Thread(Profiler::sampler, "corelix-sampler");
+        sampling.setDaemon(true);
+        sampling.setPriority(Thread.MIN_PRIORITY);
+        sampling.start();
         Thread t = new Thread(() -> report(ctx, intervalSeconds * 1000L), "corelix-profiler");
         t.setDaemon(true);
         t.setPriority(Thread.MIN_PRIORITY);
@@ -149,6 +153,101 @@ public final class Profiler {
         }
     }
 
+    // ---- «кто мусорит»: выборка стеков потоков раз в 100 мс, выделенные байты относятся к категории по стеку ----
+
+    private static final Map<String, Long> whoBytes = new HashMap<>();
+    private static final Map<Long, Long> sampledAllocated = new HashMap<>();
+
+    private static String classify(String thread, StackTraceElement[] st) {
+        String prefix = thread.startsWith("Worker-Main") ? "W:" : thread.startsWith("Render thread") ? "R:" : "S:";
+        for (StackTraceElement e : st) {
+            String c = e.getClassName();
+            if (c.startsWith("net.minecraft.client.renderer.chunk") || c.contains("SectionCompiler") || c.contains("SectionRenderDispatcher")) return prefix + "mesh";
+            if (c.contains("LightEngine") || c.startsWith("net.minecraft.world.level.lighting")) return prefix + "light";
+            if (c.startsWith("net.minecraft.world.level.levelgen") || c.startsWith("net.minecraft.world.level.chunk.status")
+                    || c.contains("ChunkGenerator") || c.contains("WorldGenRegion")) return prefix + "worldgen";
+            if (c.contains("SerializableChunkData") || c.contains("ChunkSerializer") || c.contains("IOWorker") || c.contains("RegionFile")) return prefix + "chunk-io";
+            if (c.startsWith("net.minecraft.client.particle")) return prefix + "particles";
+            if (c.startsWith("net.minecraft.client.renderer.entity") || c.contains("EntityRenderDispatcher")) return prefix + "entities";
+            if (c.startsWith("net.minecraft.client.renderer.blockentity")) return prefix + "block-entities";
+            if (c.startsWith("net.minecraft.client.gui")) return prefix + "gui";
+            if (c.contains("LevelRenderer")) return prefix + "level-render";
+            if (c.contains("ClientPacketListener") || c.contains("ClientChunkCache") || c.startsWith("net.minecraft.network")) return prefix + "network";
+            if (c.startsWith("net.minecraft.server.level.ServerChunkCache") || c.contains("ChunkMap")) return prefix + "chunk-mgmt";
+            if (c.startsWith("net.minecraft.server.level.ServerLevel") || c.startsWith("net.minecraft.world.entity")) return prefix + "entities-tick";
+        }
+        return prefix + "other";
+    }
+
+    private static void sampler() {
+        try {
+            java.lang.management.ThreadMXBean base = ManagementFactory.getThreadMXBean();
+            if (!(base instanceof com.sun.management.ThreadMXBean tmx) || !tmx.isThreadAllocatedMemorySupported()) {
+                return;
+            }
+            long[] watched = new long[0];
+            long refresh = 0;
+            while (!Thread.currentThread().isInterrupted()) {
+                Thread.sleep(100);
+                long now = System.nanoTime();
+                if (now - refresh > 2_000_000_000L || watched.length == 0) {
+                    refresh = now;
+                    long[] all = tmx.getAllThreadIds();
+                    java.lang.management.ThreadInfo[] names = tmx.getThreadInfo(all);
+                    long[] tmp = new long[all.length];
+                    int n = 0;
+                    for (int i = 0; i < all.length; i++) {
+                        if (names[i] != null) {
+                            String nm = names[i].getThreadName();
+                            if (nm.startsWith("Worker-Main") || nm.startsWith("Render thread") || nm.startsWith("Server thread")) {
+                                tmp[n++] = all[i];
+                            }
+                        }
+                    }
+                    watched = java.util.Arrays.copyOf(tmp, n);
+                }
+                if (watched.length == 0) {
+                    continue;
+                }
+                java.lang.management.ThreadInfo[] infos = tmx.getThreadInfo(watched, 40);
+                long[] bytes = tmx.getThreadAllocatedBytes(watched);
+                synchronized (whoBytes) {
+                    for (int i = 0; i < watched.length; i++) {
+                        if (infos[i] == null || bytes[i] < 0) {
+                            continue;
+                        }
+                        long delta = bytes[i] - sampledAllocated.getOrDefault(watched[i], bytes[i]);
+                        sampledAllocated.put(watched[i], bytes[i]);
+                        if (delta > 0) {
+                            whoBytes.merge(classify(infos[i].getThreadName(), infos[i].getStackTrace()), delta, Long::sum);
+                        }
+                    }
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Throwable unavailable) {
+            // выборка недоступна на этой JVM: остаётся итог по потокам
+        }
+    }
+
+    private static String whoSummary() {
+        List<Map.Entry<String, Long>> top;
+        synchronized (whoBytes) {
+            top = new ArrayList<>(whoBytes.entrySet());
+            whoBytes.clear();
+        }
+        if (top.isEmpty()) {
+            return "";
+        }
+        top.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+        StringBuilder sb = new StringBuilder(" | WHO (MB):");
+        for (int i = 0; i < Math.min(7, top.size()); i++) {
+            sb.append(i == 0 ? " " : ", ").append(top.get(i).getKey()).append(' ').append(top.get(i).getValue() >> 20);
+        }
+        return sb.toString();
+    }
+
     // ---- выделения памяти по потокам (кто делает мусор) ----
 
     private static final Map<Long, Long> lastAllocated = new HashMap<>();
@@ -217,7 +316,7 @@ public final class Profiler {
                 line += " | GC pauses " + gcs + ", sum " + gcSum + " ms, worst " + gcMax + " ms"
                         + (gcMax > 0 ? " (" + gcWorst + ")" : "")
                         + " | heap " + ((rt.totalMemory() - rt.freeMemory()) >> 20) + "/" + (rt.maxMemory() >> 20) + " MB"
-                        + allocationSummary();
+                        + allocationSummary() + whoSummary();
                 ctx.info("PROFILE " + line);
             }
         } catch (InterruptedException e) {
