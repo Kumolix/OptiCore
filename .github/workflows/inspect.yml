@@ -1,0 +1,33 @@
+name: inspect
+
+# Ручной инструмент разработчика: печатает сигнатуры (javap) классов настоящего клиента в именах Mojang.
+# Нужен, чтобы писать миксины без догадок. Результат смотреть в логе запуска.
+on:
+  workflow_dispatch:
+    inputs:
+      classes:
+        description: 'Классы через пробел (net.minecraft.world.level.block.Block ...)'
+        required: true
+      flags:
+        description: 'Флаги javap'
+        default: '-p'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Сборка ремаппера
+        run: gradle :remap:jar -PnoMixinSupport --stacktrace
+      - name: javap
+        env:
+          CLASSES: ${{ inputs.classes }}
+          FLAGS: ${{ inputs.flags }}
+        run: bash scripts/inspect.sh "$FLAGS" $CLASSES
