@@ -205,6 +205,7 @@ public final class Profiler {
                                     + " | chunk packets %d, sum %d ms, worst %d ms",
                             frames, frameSum / (double) frames / MS, frameMax / MS, over50, over100, over250,
                             slowByChunks, slowByGc, chunkCalls, chunkSum / MS, chunkMax / MS);
+                    line += RenderStats.reportAndReset(frames);
                     frames = frameSum = frameMax = 0;
                     over50 = over100 = over250 = slowByChunks = slowByGc = 0;
                     chunkCalls = chunkSum = chunkMax = 0;
