@@ -24,6 +24,16 @@ public final class MixinCheckMain {
             System.out.println("MIXIN_REAL_FAIL");
             System.exit(1);
         }
+        // клиентский мод (если подключён): F3 и главное меню. getDeclaredMethods заставляет JVM верифицировать класс.
+        for (String cls : new String[] {"net.minecraft.client.gui.components.DebugScreenOverlay", "net.minecraft.client.gui.screens.TitleScreen"}) {
+            Method[] ms = Class.forName(cls, false, loader).getDeclaredMethods();
+            boolean ok = Arrays.stream(ms).anyMatch(m -> m.getName().contains("corelix$"));
+            System.out.println("MIXIN_CLIENT " + cls + " patched=" + ok);
+            if (!ok && System.getProperty("corelix.expectClientMod") != null) {
+                System.out.println("MIXIN_REAL_FAIL");
+                System.exit(1);
+            }
+        }
         System.out.println("MIXIN_REAL_OK");
     }
 }

@@ -11,7 +11,11 @@ import java.nio.file.Path;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -85,6 +89,17 @@ public final class CorelixClassLoader extends URLClassLoader {
             bytes = transform(name, bytes);
         }
         return bytes;
+    }
+
+    /** Ресурсы без повторов: один и тот же jar виден и в нашем списке URL, и у родителя (classpath), игра иначе жалуется на дубли. */
+    @Override
+    public Enumeration<URL> getResources(String name) throws IOException {
+        Map<String, URL> unique = new LinkedHashMap<>();
+        for (Enumeration<URL> e = super.getResources(name); e.hasMoreElements(); ) {
+            URL url = e.nextElement();
+            unique.putIfAbsent(url.toExternalForm(), url);
+        }
+        return Collections.enumeration(unique.values());
     }
 
     private static boolean isParentFirst(String name) {

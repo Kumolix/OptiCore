@@ -35,13 +35,16 @@ jobs:
       - name: Дымовой тест
         run: bash scripts/smoke.sh
 
+      - name: Клиентский мод
+        run: bash scripts/build-client-mod.sh
+
       - name: Бандл
         env:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           mkdir -p dist/mods dist/libs
           cp loader/build/libs/corelix-loader.jar dist/
-          cp core/build/libs/corelix-core.jar dist/mods/
+          cp core/build/libs/corelix-core.jar client/build/corelix-client.jar dist/mods/
           cp mixin-support/build/bundle/*.jar dist/libs/
           cp remap/build/libs/corelix-remap.jar dist/libs/
           echo "${TAG}" > dist/VERSION

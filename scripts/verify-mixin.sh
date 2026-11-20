@@ -39,7 +39,9 @@ javac -proc:none -nowarn -cp "$W/client-mojmap.jar:$MIXIN_JAR:$LOADER:$MCLIBS" -
 cp "$FIX"/resources/* "$B/"
 rm -rf "$W/game"; mkdir -p "$W/game/mods"
 jar cf "$W/game/mods/mixintest.jar" -C "$B" .
+[ -f "$ROOT/client/build/corelix-client.jar" ] && cp "$ROOT/client/build/corelix-client.jar" "$W/game/mods/"
 
+CLIENT_MOD_FLAG=""; [ -f "$W/game/mods/corelix-client.jar" ] && CLIENT_MOD_FLAG="-Dcorelix.expectClientMod=1"
 echo "--- запуск через загрузчик"
 set +e
 OUT="$(java -Xmx2g \
@@ -48,6 +50,7 @@ OUT="$(java -Xmx2g \
   -Dcorelix.mappings="$W/client.txt" \
   -Dcorelix.cache="$W/cache" \
   -Dcorelix.mainClass=dev.corelix.mixintest.MixinCheckMain \
+  ${CLIENT_MOD_FLAG:-} \
   -cp "$LOADER:$W/client.jar:$MCLIBS" \
   dev.corelix.loader.CorelixMain --gameDir "$W/game" 2>&1)"
 code=$?

@@ -34,6 +34,11 @@ jobs:
       - name: Бандл библиотек (Mixin, ASM, сервис Mixin)
         run: gradle :mixin-support:bundle --stacktrace
 
+      - name: Сборка клиентского мода (миксины на Minecraft)
+        env:
+          CORELIX_VERIFY_DIR: ${{ runner.temp }}/corelix-verify
+        run: bash scripts/build-client-mod.sh
+
       - name: Проверка Mixin на настоящем клиенте Minecraft
         env:
           CORELIX_VERIFY_DIR: ${{ runner.temp }}/corelix-verify
@@ -43,7 +48,7 @@ jobs:
         run: |
           mkdir -p dist/mods dist/libs
           cp loader/build/libs/corelix-loader.jar dist/
-          cp core/build/libs/corelix-core.jar dist/mods/
+          cp core/build/libs/corelix-core.jar client/build/corelix-client.jar dist/mods/
           cp mixin-support/build/bundle/*.jar dist/libs/
           cp remap/build/libs/corelix-remap.jar dist/libs/
 
