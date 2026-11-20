@@ -23,6 +23,9 @@ public final class CoreConfig {
             gc.monitor=true
             # gc.monitor.interval: период проверки, секунды
             gc.monitor.interval=10
+            # profiler: раз в период печатать в лог время кадров, обработку чанков и паузы GC (строки PROFILE)
+            profiler=true
+            profiler.interval=10
             """;
 
     private final Properties props;
@@ -78,6 +81,18 @@ public final class CoreConfig {
     public int gcMonitorIntervalSeconds() {
         try {
             return Math.max(1, Integer.parseInt(props.getProperty("gc.monitor.interval", "10").trim()));
+        } catch (NumberFormatException e) {
+            return 10;
+        }
+    }
+
+    public boolean profiler() {
+        return Boolean.parseBoolean(props.getProperty("profiler", "true").trim());
+    }
+
+    public int profilerIntervalSeconds() {
+        try {
+            return Math.max(2, Integer.parseInt(props.getProperty("profiler.interval", "10").trim()));
         } catch (NumberFormatException e) {
             return 10;
         }

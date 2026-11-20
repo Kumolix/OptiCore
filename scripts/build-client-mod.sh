@@ -19,7 +19,7 @@ MIXIN_JAR="$(ls "$BUNDLE"/sponge-mixin-*.jar | head -1)"
 MCLIBS="$(ls "$W"/libs/*.jar | tr '\n' ':')"
 B="$ROOT/client/build/classes"
 rm -rf "$ROOT/client/build"; mkdir -p "$B"
-javac -proc:none -nowarn -cp "$W/client-mojmap.jar:$MIXIN_JAR:$LOADER:$MCLIBS" -d "$B" $(find "$ROOT/client/src" -name '*.java')
+javac -proc:none -nowarn -cp "$W/client-mojmap.jar:$MIXIN_JAR:$LOADER:$ROOT/core/build/libs/corelix-core.jar:$MCLIBS" -d "$B" $(find "$ROOT/client/src" -name '*.java')
 for f in "$ROOT"/client/resources/*; do sed "s/\${version}/$VERSION/" "$f" > "$B/$(basename "$f")"; done
 jar cf "$ROOT/client/build/corelix-client.jar" -C "$B" .
 echo "собрано: client/build/corelix-client.jar ($VERSION, Minecraft $MC)"

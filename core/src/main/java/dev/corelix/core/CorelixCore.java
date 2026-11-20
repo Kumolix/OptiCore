@@ -22,6 +22,9 @@ public final class CorelixCore implements CorelixMod {
         executor = new CorelixExecutor(threads);
         ctx.info("profile=" + platform + ", worker threads=" + threads);
 
+        if (config.profiler()) {
+            Profiler.start(ctx, config.profilerIntervalSeconds());
+        }
         if (config.gcMonitor()) {
             GcMonitor.start(ctx, config.gcMonitorIntervalSeconds());
         }
