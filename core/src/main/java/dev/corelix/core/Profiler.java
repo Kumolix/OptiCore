@@ -4,6 +4,10 @@ import dev.corelix.api.ModContext;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.NotificationEmitter;
@@ -145,6 +149,46 @@ public final class Profiler {
         }
     }
 
+    // ---- выделения памяти по потокам (кто делает мусор) ----
+
+    private static final Map<Long, Long> lastAllocated = new HashMap<>();
+
+    /** Топ потоков по объёму выделенной памяти за период, МБ. Пусто, если JVM не умеет считать выделения по потокам. */
+    private static String allocationSummary() {
+        try {
+            java.lang.management.ThreadMXBean base = ManagementFactory.getThreadMXBean();
+            if (!(base instanceof com.sun.management.ThreadMXBean tmx) || !tmx.isThreadAllocatedMemorySupported()) {
+                return "";
+            }
+            long[] ids = tmx.getAllThreadIds();
+            long[] bytes = tmx.getThreadAllocatedBytes(ids);
+            java.lang.management.ThreadInfo[] infos = tmx.getThreadInfo(ids);
+            Map<String, Long> byName = new HashMap<>();
+            long total = 0;
+            for (int i = 0; i < ids.length; i++) {
+                if (infos[i] == null || bytes[i] < 0) {
+                    continue;
+                }
+                long delta = bytes[i] - lastAllocated.getOrDefault(ids[i], 0L);
+                lastAllocated.put(ids[i], bytes[i]);
+                if (delta <= 0) {
+                    continue;
+                }
+                total += delta;
+                byName.merge(infos[i].getThreadName().replaceAll("[0-9]+", "#"), delta, Long::sum);
+            }
+            List<Map.Entry<String, Long>> top = new ArrayList<>(byName.entrySet());
+            top.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+            StringBuilder sb = new StringBuilder(" | ALLOC " + (total >> 20) + " MB:");
+            for (int i = 0; i < Math.min(5, top.size()); i++) {
+                sb.append(i == 0 ? " " : ", ").append(top.get(i).getKey()).append(' ').append(top.get(i).getValue() >> 20);
+            }
+            return sb.toString();
+        } catch (Throwable unavailable) {
+            return "";
+        }
+    }
+
     // ---- отчёт ----
 
     private static void report(ModContext ctx, long intervalMillis) {
@@ -171,7 +215,8 @@ public final class Profiler {
                 Runtime rt = Runtime.getRuntime();
                 line += " | GC pauses " + gcs + ", sum " + gcSum + " ms, worst " + gcMax + " ms"
                         + (gcMax > 0 ? " (" + gcWorst + ")" : "")
-                        + " | heap " + ((rt.totalMemory() - rt.freeMemory()) >> 20) + "/" + (rt.maxMemory() >> 20) + " MB";
+                        + " | heap " + ((rt.totalMemory() - rt.freeMemory()) >> 20) + "/" + (rt.maxMemory() >> 20) + " MB"
+                        + allocationSummary();
                 ctx.info("PROFILE " + line);
             }
         } catch (InterruptedException e) {
